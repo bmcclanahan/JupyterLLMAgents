@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+jupyterlab = "4.0.1"
+langchain = "0.0.32"
+pandas = "2.0.2"
+openai = "0.27.7"
+pandasai = "0.3.0"
+
+[requires]
+python_version = "3.9"
