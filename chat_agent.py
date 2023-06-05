@@ -116,6 +116,7 @@ class ChatAgentMagics(Magics):
 
     def perform_dataframe_analysis(self, analysis_code: str):
         analysis_code = self.clean_code(analysis_code)
+        print()
         print('cleaned code')
         print(analysis_code)
         input_environment = {
