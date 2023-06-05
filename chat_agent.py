@@ -2,6 +2,7 @@ from IPython.core.magic import magics_class, register_line_cell_magic, Magics
 
 import ast
 import astor
+import pandas as pd
 
 from langchain.agents import load_tools
 from langchain.agents import initialize_agent
@@ -54,6 +55,7 @@ class ChatAgentMagics(Magics):
             max_iterations=3
         )
         self.__callback_handler = ChatAgentCallbackHandler()
+        self.__result_num = 1
 
     def is_df_overwrite(self, node: ast.stmt) -> str:
 
@@ -139,10 +141,14 @@ class ChatAgentMagics(Magics):
         else:
             result = eval(last_line, environment)
         result_num = len([key for key in self.__agent_input if 'result' in key])
-        result_key = f'result{result_num + 1}'
+        result_key = f'result{self.__result_num}'
+        description = f'object of type {type(result)} related to the thought "{self.__callback_handler.descriptions[-1]}"'
+        if type(result) == pd.DataFrame:
+            description+= f'. The dataframe has the columns {result.columns.values}'
         self.__agent_input[result_key] = {
-            'value': result, 'description': self.__callback_handler.descriptions[-1]
+            'value': result, 'description': description
         }
+        self.__result_num += 1
         return f'Answer has been successfully derived. Key: {result_key}' if not type(result) == str else result
 
     def chat_agent(self, line: Optional[str], cell: Optional[str]=None):
@@ -161,7 +167,8 @@ class ChatAgentMagics(Magics):
             print('prompt is ')
             print(cell)
             response = self.__agent.run(cell, callbacks=[self.__callback_handler])
-        return response
+        result_key = result_key = f'result{self.__result_num -1}'
+        return self.__agent_input[result_key]['value'] if result_key in self.__agent_input else response
 
 
 chat_agent_magic = ChatAgentMagics()
