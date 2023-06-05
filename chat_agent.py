@@ -8,10 +8,30 @@ from langchain.agents import initialize_agent
 from langchain.agents import AgentType
 from langchain.llms import OpenAI
 from langchain.tools import Tool
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.schema import AgentAction
 
-from typing import Optional
+
+from typing import Any, Optional, Dict, List
 
 from constants import WHITELISTED_LIBRARIES, WHITELISTED_BUILTINS
+
+
+class ChatAgentCallbackHandler(BaseCallbackHandler):
+
+    def __init__(self):
+        self.descriptions = []
+
+    def on_agent_action(self, action: AgentAction, **kwargs: Any) -> Any:
+        """Run on agent action."""
+        index = action.log.find("Action:")
+        if index != -1:
+            self.descriptions.append(
+                 action.log[:index].strip()
+            )
+            print('description extracted', self.descriptions[-1])
+                  
+    
 
 @magics_class
 class ChatAgentMagics(Magics):
@@ -24,7 +44,7 @@ class ChatAgentMagics(Magics):
             Tool.from_function(
                 func=self.perform_dataframe_analysis,
                 name = 'dataframeAnalysis',
-                description='Tool to perform analysis on Pandas dataframes. Input should be python code containing dataframe operations to derive answers to questions.'
+                description='Tool to perform analysis on Pandas dataframes. Input should be python code containing dataframe operations to derive answers to questions. The input code should store the answer in variable named result.'
             )
         ]
         self.__agent  = initialize_agent(
@@ -33,6 +53,7 @@ class ChatAgentMagics(Magics):
             verbose=True,
             max_iterations=3
         )
+        self.__callback_handler = ChatAgentCallbackHandler()
 
     def is_df_overwrite(self, node: ast.stmt) -> str:
 
@@ -94,13 +115,15 @@ class ChatAgentMagics(Magics):
         return self.__agent_input
 
     def perform_dataframe_analysis(self, analysis_code: str):
-        print('analysis code')
-        print(analysis)
         analysis_code = self.clean_code(analysis_code)
         print('cleaned code')
         print(analysis_code)
+        input_environment = {
+            key: self.__agent_input[key]['value']
+            for key in self.__agent_input
+        }
         environment = {
-            **self.__agent_input,
+            **input_environment,
             "__builtins__": {
                 **{
                     builtin: __builtins__[builtin]
@@ -108,9 +131,18 @@ class ChatAgentMagics(Magics):
                 },
             },
         }
-        return 'done'
-
-        
+        exec(analysis_code, environment)
+        last_line = analysis_code.split('\n')[-1].strip()
+        if 'result' in last_line and 'result' in environment:
+            result = environment['result']
+        else:
+            result = eval(last_line, environment)
+        result_num = len([key for key in self.__agent_input if 'result' in key])
+        result_key = f'result{result_num + 1}'
+        self.__agent_input[result_key] = {
+            'value': result, 'description': self.__callback_handler.descriptions[-1]
+        }
+        return f'Answer has been successfully derived. Key: {result_key}' if not type(result) == str else result
 
     def chat_agent(self, line: Optional[str], cell: Optional[str]=None):
         "Magic that works both as %lcmagic and as %%lcmagic"
@@ -123,17 +155,21 @@ class ChatAgentMagics(Magics):
                     for key in self.__agent_input
                 ]
             )
-            cell = cell + """\nwhen using the dataframeAnalysis tool you may assume that you have access to the following variables when writing the code:
+            cell = cell + """\nWhen using the dataframeAnalysis tool you may assume that you have access to the following variables when writing the code:
             """ + available_variables
             print('prompt is ')
             print(cell)
-            response = self.__agent.run(cell)
+            response = self.__agent.run(cell, callbacks=[self.__callback_handler])
         return response
 
 
 chat_agent_magic = ChatAgentMagics()
 
 set_inputs = chat_agent_magic.set_agent_input
+get_inputs = chat_agent_magic.get_agent_input
+
+def get_result(key: str):
+    return get_inputs()[key]['value']
 
 register_line_cell_magic(chat_agent_magic.chat_agent)
 
