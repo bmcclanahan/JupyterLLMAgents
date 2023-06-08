@@ -67,4 +67,5 @@ WHITELISTED_BUILTINS = [
     "type",
     "vars",
     "zip",
+    "__import__" # remove this for added security
 ]

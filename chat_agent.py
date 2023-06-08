@@ -175,7 +175,8 @@ This is the result of `print(df.head({rows}))`
                         input_df.loc[index][["latitude", "longitude"]],
                         tooltip=input_df.loc[index]["name"],
                     ).add_to(m)
-                result_key = self.get_input_key(f"{df_name}_map")
+                # result_key = self.get_input_key(f"{df_name}_map") prevents overwritting but adds prompt complexity
+                result_key = f"{df_name}_map"
                 self.__agent_input[result_key] = {
                     "value": m,
                     "description": f"map for dataframe {df_name}",
@@ -262,7 +263,8 @@ This is the result of `print(df.head({rows}))`
                 result = environment[key_val]
             else:
                 return "complete. No assignment operation found in last lines of code."
-            result_key = self.get_input_key(key_val)
+            # result_key = self.get_input_key(key_val)
+            result_key = key_val
             description = f'object of type {type(result)} related to the thought "{self.__callback_handler.descriptions[-1]}"'
             if type(result) == pd.DataFrame:
                 description += (
