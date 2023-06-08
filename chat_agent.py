@@ -3,6 +3,7 @@ from IPython.core.magic import magics_class, register_line_cell_magic, Magics
 import ast
 import argparse
 import astor
+import folium
 import pandas as pd
 import re
 import os
@@ -52,7 +53,12 @@ class ChatAgentMagics(Magics):
                 func=self.python_execution,
                 name="pythonCodeExecution",
                 description="Tool used to execute Python code. Input should be python code containing statements to derive answers to questions or solutions to instructions. The input code should store the answer in variable named result unless instructed otherwise. The tool may return feedback from the user on the input code. If the result is a numeric value be sure to assign it to a variable with proper formatting without commas, dollar signs,  percent symbols or any other symbol.",
-            )
+            ),
+            Tool.from_function(
+                func=self.plot_folium_map,
+                name="mapPlottingTool",
+                description="Tool used to plot markers on a map. Input to the tool should be the name of a Pandas dataframe that has the columns name, latitude, and longitude.",
+            ),
         ]
         self.__agent = initialize_agent(
             self.__tools,
@@ -65,6 +71,7 @@ class ChatAgentMagics(Magics):
         self.__noninteractive = False
         self.__verbose = False
         self.__last_key = None
+        self.__return_type_list = [folium.folium.Map]
 
     def is_df_overwrite(self, node: ast.stmt) -> str:
         """
@@ -122,7 +129,7 @@ class ChatAgentMagics(Magics):
         name: str,
         description: str,
         rows: int = 5,
-        include_df_head: bool = True,
+        include_df_head: bool = False,
     ):
         if type(input_var) == pd.DataFrame and include_df_head:
             description += f"""
@@ -136,6 +143,49 @@ This is the result of `print(df.head({rows}))`
 
     def get_agent_input(self):
         return self.__agent_input
+
+    def get_input_key(self, key_val: str):
+        num = len([key for key in self.__agent_input if key_val in key])
+        input_key = key_val + (str(num + 1) if num > 0 else "")
+        return input_key
+
+    def plot_folium_map(self, df_name: str, limit=20):
+        try:
+            match = re.match(
+                "mapPlottingTool\(([^\W0-9]\w*)\)", df_name
+            )  # match incorrect inputs to the tool that use the tool name passing the dataframe as an argument to the tool.
+            if match:
+                df_name = match.group(1)
+            if df_name in self.__agent_input:
+                input_df = self.__agent_input[df_name]["value"]
+                if type(input_df) == pd.Series:
+                    input_df = input_df.to_frame().T
+                if "latitude" in input_df.index:
+                    input_df = input_df.T
+                latitude = (input_df.latitude.max() + input_df.latitude.min()) / 2.0
+                longitude = (input_df.longitude.max() + input_df.longitude.min()) / 2.0
+                m = folium.Map(location=[latitude, longitude], zoom_start=13)
+                if input_df.index.shape[0] > limit:
+                    print(
+                        "dataframe has rows greater than limit of {limit}: {input_df.shape[0]}"
+                    )
+                    print("mapping only the first {limit} rows")
+                for index in input_df.index[:limit]:
+                    folium.Marker(
+                        input_df.loc[index][["latitude", "longitude"]],
+                        tooltip=input_df.loc[index]["name"],
+                    ).add_to(m)
+                result_key = self.get_input_key(f"{df_name}_map")
+                self.__agent_input[result_key] = {
+                    "value": m,
+                    "description": f"map for dataframe {df_name}",
+                }
+                self.__last_key = result_key
+                return f"map for {df_name} created"
+            else:
+                return f"name {df_name} not available in environment"
+        except Exception as e:
+            return f"tool failed with following error: {e}"
 
     def python_execution(self, analysis_code: str):
         last_character = self.__callback_handler.agent_action.log.strip()[-1]
@@ -202,10 +252,8 @@ This is the result of `print(df.head({rows}))`
             exec(analysis_code, environment)
 
             code_parse = ast.parse(analysis_code, mode="exec")
-            key_val = "result"
-            if "result" in environment:
-                result = environment["result"]
-            elif type(code_parse.body[-1]) == ast.Assign:
+            key_val = None
+            if type(code_parse.body[-1]) == ast.Assign:
                 if self.__verbose:
                     print(
                         "The variable `result` was not found in executing environment. Using the assignment on the last code line instead for the result."
@@ -214,9 +262,7 @@ This is the result of `print(df.head({rows}))`
                 result = environment[key_val]
             else:
                 return "complete. No assignment operation found in last lines of code."
-            result_num = len([key for key in self.__agent_input if key_val in key])
-            result_key = key_val + (str(result_num + 1) if result_num > 0 else "")
-            alias_description = f"It is an alias for {key_val} and" if key_val else ""
+            result_key = self.get_input_key(key_val)
             description = f'object of type {type(result)} related to the thought "{self.__callback_handler.descriptions[-1]}"'
             if type(result) == pd.DataFrame:
                 description += (
@@ -285,6 +331,11 @@ This is the result of `print(df.head({rows}))`
         print("Prompt:")
         print(cell)
         response = self.__agent.run(cell, callbacks=[self.__callback_handler])
+        if (
+            type(self.__agent_input[self.__last_key]["value"])
+            in self.__return_type_list
+        ):
+            return self.__agent_input[self.__last_key]["value"]
         return response
 
 
