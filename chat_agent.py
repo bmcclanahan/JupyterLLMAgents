@@ -208,7 +208,7 @@ This is the result of `print(df.head({rows}))`
     --------------------------------------------------------
     
     To allow execution type Y or type N to disallow.
-    You may give additional feedback to the option for either option by placing a dash after the allow option followed by the feedbak. For example:
+    You may give additional feedback for either option by placing a dash after the option followed by the feedback. For example:
     Y - this code answers my original question
     or
     N - this code does not produce the right answer
