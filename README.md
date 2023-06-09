@@ -14,6 +14,8 @@ These variables can then be accessed by the chat agent for subsequent references
 
 Reference the **HelloAgent** notebook for a complete example.
 
+The **LLMPABusinessReviewAnalysis** notebook shows an example of the chat agent being used to perform different types of analysis on data from the [Yelp Dataset](https://www.yelp.com/dataset).
+
 ### Requirements
 This project assumes the use of python 3.9 but may work with other python versions as well. A [OpenAI API key](https://platform.openai.com/account/api-keys) is required and should be set in an environment variable named `OPENAI_API_KEY`.
 
