@@ -177,7 +177,7 @@ This is the result of `print(df.head({rows}))`
                     input_df = input_df.T
                 latitude = (input_df.latitude.max() + input_df.latitude.min()) / 2.0
                 longitude = (input_df.longitude.max() + input_df.longitude.min()) / 2.0
-                m = folium.Map(location=[latitude, longitude], zoom_start=10)
+                m = folium.Map(location=[latitude, longitude], zoom_start=12)
                 if input_df.index.shape[0] > limit:
                     print(
                         "dataframe has rows greater than limit of {limit}: {input_df.shape[0]}"
