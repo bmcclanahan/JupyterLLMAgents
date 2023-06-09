@@ -8,6 +8,8 @@ import pandas as pd
 import re
 import os
 
+from copy import deepcopy
+
 from langchain.agents import load_tools
 from langchain.agents import initialize_agent
 from langchain.agents import AgentType
@@ -18,7 +20,7 @@ from langchain.schema import AgentAction
 from langchain.utilities import GoogleSerperAPIWrapper
 
 
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Union
 
 from constants import WHITELISTED_LIBRARIES, WHITELISTED_BUILTINS
 
@@ -138,6 +140,17 @@ This is the result of `print(df.head({rows}))`
         """
         self.__agent_input[name] = {"value": input_var, "description": description}
 
+    def delete_agent_input(self, key: Union[List[str], str]):
+        if type(key) == list:
+            keys = key
+        else:
+            keys = [key]
+        for item in keys:
+            if item in self.__agent_input:
+                del self.__agent_input[item]
+            else:
+                print(f"Key {item} not found in agent input.")
+
     def set_agent_input(self, agent_input: dict):
         self.__agent_input = agent_input
 
@@ -164,7 +177,7 @@ This is the result of `print(df.head({rows}))`
                     input_df = input_df.T
                 latitude = (input_df.latitude.max() + input_df.latitude.min()) / 2.0
                 longitude = (input_df.longitude.max() + input_df.longitude.min()) / 2.0
-                m = folium.Map(location=[latitude, longitude], zoom_start=13)
+                m = folium.Map(location=[latitude, longitude], zoom_start=10)
                 if input_df.index.shape[0] > limit:
                     print(
                         "dataframe has rows greater than limit of {limit}: {input_df.shape[0]}"
@@ -346,6 +359,7 @@ chat_agent_magic = ChatAgentMagics()
 set_inputs = chat_agent_magic.set_agent_input
 get_inputs = chat_agent_magic.get_agent_input
 add_agent_input = chat_agent_magic.add_agent_input
+delete_agent_input = chat_agent_magic.delete_agent_input
 
 
 def get_result(key: str):
